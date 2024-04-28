@@ -1,15 +1,33 @@
 use std::{mem::size_of, os::raw::c_void, str::from_utf8};
 
 use windows::Win32::{
-    Foundation::{BOOL, HWND, LPARAM, RECT, TRUE},
-    Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS},
+    Foundation::{BOOL, FALSE, HWND, LPARAM, RECT, TRUE},
+    Graphics::{
+        Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS},
+        Gdi::{EnumDisplayMonitors, GetMonitorInfoA, HDC, HMONITOR, MONITORINFO},
+    },
     UI::WindowsAndMessaging::{
         EnumWindows, GetWindowInfo, GetWindowTextA, GetWindowTextLengthA, GetWindowTextLengthW,
         GetWindowTextW, IsWindowVisible, MoveWindow, WINDOWINFO, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     },
 };
 
-unsafe extern "system" fn enum_proc(window: HWND, _lp: LPARAM) -> BOOL {
+unsafe extern "system" fn enum_dsp_proc(
+    monitor: HMONITOR,
+    device_ctx: HDC,
+    rect: *mut RECT,
+    app_data: LPARAM,
+) -> BOOL {
+    let mut info = MONITORINFO::default();
+    info.cbSize = size_of::<MONITORINFO>() as u32;
+    GetMonitorInfoA(monitor, &mut info);
+    println!("{}, {} to {}, {}", info.rcMonitor.left, info.rcMonitor.top, info.rcMonitor.right, info.rcMonitor.bottom);
+    println!("{}, {}", (*rect).left, (*rect).top);
+    println!("dwFlags = {}", info.dwFlags);
+    return TRUE;
+}
+
+unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
     if !IsWindowVisible(window).as_bool() {
         return TRUE;
     }
@@ -95,6 +113,9 @@ fn main() {
     println!("Hello, world!");
     let lparam = LPARAM { 0: 0 };
     unsafe {
-        let _ = EnumWindows(Some(enum_proc), lparam);
+        let _ = EnumDisplayMonitors(HDC::default(), None, Some(enum_dsp_proc), LPARAM::default());
+    }
+    unsafe {
+        let _ = EnumWindows(Some(enum_wnd_proc), lparam);
     };
 }
