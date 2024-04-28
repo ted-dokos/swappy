@@ -45,14 +45,18 @@ unsafe extern "system" fn enum_proc(window: HWND, _lp: LPARAM) -> BOOL {
     GetWindowTextA(window, &mut text_buffer);
     GetWindowTextW(window, &mut text_buffer_w);
 
+    if rc_window.left > 2560 - 100 {
+        return TRUE;
+    }
+
     // Some other options to consider: SetWindowPlacement and SetWindowPos.
-    let mut move_left = rc_window.left + 100;
-    if text_buffer.starts_with(b"main.rs") {
-        move_left = rc_window.left + 2560;
+    let mut new_left = rc_window.left - 2560;
+    if rc_window.right < 100 {
+        new_left = rc_window.left + 2560;
     }
     let _ = MoveWindow(
         window,
-        move_left,
+        new_left,
         rc_window.top,
         rc_window.right - rc_window.left,
         rc_window.bottom - rc_window.top,
