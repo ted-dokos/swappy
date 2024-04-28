@@ -18,12 +18,20 @@ unsafe extern "system" fn enum_dsp_proc(
     rect: *mut RECT,
     app_data: LPARAM,
 ) -> BOOL {
-    let mut info = MONITORINFO::default();
-    info.cbSize = size_of::<MONITORINFO>() as u32;
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
     GetMonitorInfoA(monitor, &mut info);
-    println!("{}, {} to {}, {}", info.rcMonitor.left, info.rcMonitor.top, info.rcMonitor.right, info.rcMonitor.bottom);
+    println!(
+        "{}, {} to {}, {}",
+        info.rcMonitor.left, info.rcMonitor.top, info.rcMonitor.right, info.rcMonitor.bottom
+    );
     println!("{}, {}", (*rect).left, (*rect).top);
     println!("dwFlags = {}", info.dwFlags);
+    let ac_closure = app_data.0 as *mut ClosureInfo;
+    let add_corner: &mut dyn FnMut(i32) = (*ac_closure).fp;
+    (add_corner)((*rect).left);
     return TRUE;
 }
 
@@ -32,7 +40,10 @@ unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
         return TRUE;
     }
 
-    let mut window_info = WINDOWINFO::default();
+    let mut window_info = WINDOWINFO {
+        cbSize: size_of::<WINDOWINFO>() as u32,
+        ..Default::default()
+    };
     let _ = GetWindowInfo(window, &mut window_info as *mut WINDOWINFO);
 
     let is_tool_window = (window_info.dwExStyle.0 & WS_EX_TOOLWINDOW.0) != 0;
@@ -72,14 +83,14 @@ unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
     if rc_window.right < 100 {
         new_left = rc_window.left + 2560;
     }
-    let _ = MoveWindow(
-        window,
-        new_left,
-        rc_window.top,
-        rc_window.right - rc_window.left,
-        rc_window.bottom - rc_window.top,
-        true,
-    );
+    // let _ = MoveWindow(
+    //     window,
+    //     new_left,
+    //     rc_window.top,
+    //     rc_window.right - rc_window.left,
+    //     rc_window.bottom - rc_window.top,
+    //     true,
+    // );
     let mut frame_bounds_rect = RECT::default();
     let _ = DwmGetWindowAttribute(
         window,
@@ -109,12 +120,31 @@ unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
     println!("-----------------------------------------------");
     return TRUE;
 }
+
+struct ClosureInfo<'a> {
+    fp: &'a mut dyn FnMut(i32)
+}
 fn main() {
     println!("Hello, world!");
     let lparam = LPARAM { 0: 0 };
+    let mut window_x_corners = Vec::<i32>::new();
+    let mut add_corner = |i| {
+        window_x_corners.push(i);
+    };
+    let ac_closure = ClosureInfo {
+        fp: &mut add_corner
+    };
     unsafe {
-        let _ = EnumDisplayMonitors(HDC::default(), None, Some(enum_dsp_proc), LPARAM::default());
-    }
+        let _ = EnumDisplayMonitors(
+            HDC::default(),
+            None,
+            Some(enum_dsp_proc),
+            LPARAM {
+                0: &ac_closure as *const _ as isize,
+            },
+        );
+    };
+    println!("window_x_corners = {:#?}", window_x_corners);
     unsafe {
         let _ = EnumWindows(Some(enum_wnd_proc), lparam);
     };
