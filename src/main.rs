@@ -161,6 +161,8 @@ fn main() {
     if args.info {
         println!("monitor_infos = {:#?}", monitor_infos);
         println!("-----------------------------------------------");
+        println!("Window Information:");
+        println!("-----------------------------------------------");
         unsafe {
             let _ = EnumWindows(Some(enum_wnd_display_window_infos), LPARAM::default());
         };
