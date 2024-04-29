@@ -34,6 +34,10 @@ unsafe extern "system" fn enum_dsp_get_monitor_infos(
     return TRUE;
 }
 
+unsafe extern "system" fn enum_wnd_perform_swaps(window: HWND, _lp: LPARAM) -> BOOL {
+    return TRUE;
+}
+
 unsafe extern "system" fn enum_wnd_display_window_infos(window: HWND, _lp: LPARAM) -> BOOL {
     // Various checks to exclude certain types of windows.
     // This roughly corresponds to windows the user cares about moving, in my experience.
@@ -168,4 +172,13 @@ fn main() {
         };
         return;
     }
+
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_wnd_perform_swaps),
+            LPARAM {
+                0: &monitor_infos as *const _ as isize,
+            },
+        );
+    };
 }
