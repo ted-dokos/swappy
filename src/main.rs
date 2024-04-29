@@ -1,51 +1,53 @@
-use std::{mem::size_of, os::raw::c_void, str::from_utf8};
+use std::{
+    mem::{size_of, transmute},
+    os::raw::c_void,
+    str::from_utf8,
+};
 
+use clap::Parser;
 use windows::Win32::{
-    Foundation::{BOOL, FALSE, HWND, LPARAM, RECT, TRUE},
+    Foundation::{BOOL, HWND, LPARAM, RECT, TRUE},
     Graphics::{
         Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS},
-        Gdi::{EnumDisplayMonitors, GetMonitorInfoA, HDC, HMONITOR, MONITORINFO},
+        Gdi::{EnumDisplayMonitors, HDC, HMONITOR},
     },
     UI::WindowsAndMessaging::{
         EnumWindows, GetWindowInfo, GetWindowTextA, GetWindowTextLengthA, GetWindowTextLengthW,
-        GetWindowTextW, IsWindowVisible, MoveWindow, WINDOWINFO, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+        GetWindowTextW, IsWindowVisible, WINDOWINFO, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     },
 };
 
-unsafe extern "system" fn enum_dsp_proc(
+unsafe extern "system" fn enum_dsp_get_monitor_infos(
     monitor: HMONITOR,
-    device_ctx: HDC,
+    _device_ctx: HDC,
     rect: *mut RECT,
     app_data: LPARAM,
 ) -> BOOL {
-    let mut info = MONITORINFO {
-        cbSize: size_of::<MONITORINFO>() as u32,
-        ..Default::default()
-    };
-    GetMonitorInfoA(monitor, &mut info);
-    println!(
-        "{}, {} to {}, {}",
-        info.rcMonitor.left, info.rcMonitor.top, info.rcMonitor.right, info.rcMonitor.bottom
+    let v: &mut Vec<MonitorInfo> = transmute(app_data.0);
+    add_monitor_info(
+        v,
+        MonitorInfo {
+            handle: monitor,
+            rect: *rect,
+        },
     );
-    println!("{}, {}", (*rect).left, (*rect).top);
-    println!("dwFlags = {}", info.dwFlags);
-    let ac_closure = app_data.0 as *mut ClosureInfo;
-    let add_corner: &mut dyn FnMut(i32) = (*ac_closure).fp;
-    (add_corner)((*rect).left);
     return TRUE;
 }
 
-unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
+unsafe extern "system" fn enum_wnd_display_window_infos(window: HWND, _lp: LPARAM) -> BOOL {
+    // Various checks to exclude certain types of windows.
+    // This roughly corresponds to windows the user cares about moving, in my experience.
+    // However, this is different from the alt-tab approach
+    // mentioned by Raymond Chen in his blog post:
+    // https://devblogs.microsoft.com/oldnewthing/20071008-00/?p=24863
     if !IsWindowVisible(window).as_bool() {
         return TRUE;
     }
-
     let mut window_info = WINDOWINFO {
         cbSize: size_of::<WINDOWINFO>() as u32,
         ..Default::default()
     };
     let _ = GetWindowInfo(window, &mut window_info as *mut WINDOWINFO);
-
     let is_tool_window = (window_info.dwExStyle.0 & WS_EX_TOOLWINDOW.0) != 0;
     if is_tool_window {
         return TRUE;
@@ -68,21 +70,17 @@ unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
         rc_window.left, rc_window.top, rc_window.right, rc_window.bottom
     );
     let text_len = GetWindowTextLengthA(window);
-    let mut text_buffer = vec![u8::default(); text_len as usize];
+    let mut text_buffer = vec![u8::default(); (text_len + 1) as usize];
     let text_len_w = GetWindowTextLengthW(window);
-    let mut text_buffer_w = vec![u16::default(); text_len_w as usize];
+    let mut text_buffer_w = vec![u16::default(); (text_len_w + 1) as usize];
     GetWindowTextA(window, &mut text_buffer);
     GetWindowTextW(window, &mut text_buffer_w);
 
-    if rc_window.left > 2560 - 100 {
-        return TRUE;
-    }
-
     // Some other options to consider: SetWindowPlacement and SetWindowPos.
-    let mut new_left = rc_window.left - 2560;
-    if rc_window.right < 100 {
-        new_left = rc_window.left + 2560;
-    }
+    // let mut new_left = rc_window.left - 2560;
+    // if rc_window.right < 100 {
+    //     new_left = rc_window.left + 2560;
+    // }
     // let _ = MoveWindow(
     //     window,
     //     new_left,
@@ -121,31 +119,51 @@ unsafe extern "system" fn enum_wnd_proc(window: HWND, _lp: LPARAM) -> BOOL {
     return TRUE;
 }
 
-struct ClosureInfo<'a> {
-    fp: &'a mut dyn FnMut(i32)
-}
-fn main() {
-    println!("Hello, world!");
-    let lparam = LPARAM { 0: 0 };
-    let mut window_x_corners = Vec::<i32>::new();
-    let mut add_corner = |i| {
-        window_x_corners.push(i);
-    };
-    let ac_closure = ClosureInfo {
-        fp: &mut add_corner
-    };
+fn get_monitor_infos() -> Vec<MonitorInfo> {
+    let mut monitor_infos = Vec::<MonitorInfo>::new();
     unsafe {
         let _ = EnumDisplayMonitors(
             HDC::default(),
             None,
-            Some(enum_dsp_proc),
+            Some(enum_dsp_get_monitor_infos),
             LPARAM {
-                0: &ac_closure as *const _ as isize,
+                0: &mut monitor_infos as *mut _ as isize,
             },
         );
     };
-    println!("window_x_corners = {:#?}", window_x_corners);
-    unsafe {
-        let _ = EnumWindows(Some(enum_wnd_proc), lparam);
-    };
+    monitor_infos
+}
+fn add_monitor_info(v: &mut Vec<MonitorInfo>, info: MonitorInfo) {
+    v.push(info);
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value_t = false)]
+    info: bool,
+    #[arg(default_value_t = 0)]
+    monitor_a: u32,
+    #[arg(default_value_t = 1)]
+    monitor_b: u32,
+}
+
+#[derive(Debug)]
+struct MonitorInfo {
+    rect: RECT,
+    handle: HMONITOR,
+}
+
+fn main() {
+    let args = Args::parse();
+    let monitor_infos = get_monitor_infos();
+
+    if args.info {
+        println!("monitor_infos = {:#?}", monitor_infos);
+        println!("-----------------------------------------------");
+        unsafe {
+            let _ = EnumWindows(Some(enum_wnd_display_window_infos), LPARAM::default());
+        };
+        return;
+    }
 }
