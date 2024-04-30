@@ -158,6 +158,18 @@ struct MonitorInfo {
     handle: HMONITOR,
 }
 
+struct WindowInfo {
+    handle: HWND,
+    rect: RECT,
+    // Rectangle data from DWMWA_EXTENDED_FRAME_BOUNDS.
+    // This is useful for programs that use invisible borders.
+    // For example, a maximized vscode window's rect will have
+    // (-8, -8) as its upper left corner. The frame data gives
+    // (0, 0) instead.
+    frame: RECT,
+    monitor: HMONITOR,
+}
+
 fn main() {
     let args = Args::parse();
     let monitor_infos = get_monitor_infos();
