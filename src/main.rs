@@ -9,7 +9,7 @@ use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, RECT, TRUE},
     Graphics::{
         Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS},
-        Gdi::{EnumDisplayMonitors, HDC, HMONITOR},
+        Gdi::{EnumDisplayMonitors, MonitorFromWindow, HDC, HMONITOR, MONITOR_DEFAULTTONULL},
     },
     UI::WindowsAndMessaging::{
         EnumWindows, GetWindowInfo, GetWindowTextA, GetWindowTextLengthA, GetWindowTextLengthW,
@@ -24,7 +24,7 @@ unsafe extern "system" fn enum_dsp_get_monitor_infos(
     app_data: LPARAM,
 ) -> BOOL {
     let v: &mut Vec<MonitorInfo> = transmute(app_data.0);
-    add_monitor_info(
+    add_info(
         v,
         MonitorInfo {
             handle: monitor,
@@ -34,40 +34,34 @@ unsafe extern "system" fn enum_dsp_get_monitor_infos(
     return TRUE;
 }
 
-unsafe extern "system" fn enum_wnd_perform_swaps(window: HWND, _lp: LPARAM) -> BOOL {
+unsafe extern "system" fn enum_wnd_get_window_infos(window: HWND, app_data: LPARAM) -> BOOL {
+    let window_info = get_window_info(window);
+    if !is_relevant_window(window, window_info) {
+        return TRUE;
+    }
+    let mut frame = RECT::default();
+    let _ = DwmGetWindowAttribute(
+        window,
+        DWMWA_EXTENDED_FRAME_BOUNDS,
+        &mut frame as *mut _ as *mut c_void,
+        size_of::<RECT>() as u32,
+    );
+    let monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONULL);
+    let window_infos: &mut Vec<WindowInfo> = transmute(app_data.0);
+    add_info(window_infos, WindowInfo{
+        handle: window,
+        rect: window_info.rcWindow,
+        frame,
+        monitor,
+    });
     return TRUE;
 }
 
 unsafe extern "system" fn enum_wnd_display_window_infos(window: HWND, _lp: LPARAM) -> BOOL {
-    // Various checks to exclude certain types of windows.
-    // This roughly corresponds to windows the user cares about moving, in my experience.
-    // However, this is different from the alt-tab approach
-    // mentioned by Raymond Chen in his blog post:
-    // https://devblogs.microsoft.com/oldnewthing/20071008-00/?p=24863
-    if !IsWindowVisible(window).as_bool() {
+    let window_info = get_window_info(window);
+    if !is_relevant_window(window, window_info) {
         return TRUE;
     }
-    let mut window_info = WINDOWINFO {
-        cbSize: size_of::<WINDOWINFO>() as u32,
-        ..Default::default()
-    };
-    let _ = GetWindowInfo(window, &mut window_info as *mut WINDOWINFO);
-    let is_tool_window = (window_info.dwExStyle.0 & WS_EX_TOOLWINDOW.0) != 0;
-    if is_tool_window {
-        return TRUE;
-    }
-    let mut cloaked = 0;
-    let _ = DwmGetWindowAttribute(
-        window,
-        DWMWA_CLOAKED,
-        &mut cloaked as *mut _ as *mut c_void,
-        4,
-    );
-    let is_cloaked = cloaked != 0;
-    if is_cloaked {
-        return TRUE;
-    }
-
     let rc_window = window_info.rcWindow;
     println!(
         "Window coords: ({}, {}) to ({}, {})",
@@ -117,10 +111,42 @@ unsafe extern "system" fn enum_wnd_display_window_infos(window: HWND, _lp: LPARA
         "WS_EX_APPWINDOW = {}",
         (window_info.dwExStyle.0 & WS_EX_APPWINDOW.0)
     );
-    println!("WS_EX_TOOLWINDOW = {}", is_tool_window);
-    println!("DWMWA_CLOAKED = {}", is_cloaked);
     println!("-----------------------------------------------");
     return TRUE;
+}
+
+fn get_window_info(window: HWND) -> WINDOWINFO {
+    let mut window_info = WINDOWINFO {
+        cbSize: size_of::<WINDOWINFO>() as u32,
+        ..Default::default()
+    };
+    let _ = unsafe { GetWindowInfo(window, &mut window_info as *mut WINDOWINFO) };
+    window_info
+}
+
+// Various checks to exclude certain types of windows.
+// This roughly corresponds to windows the user cares about moving, in my experience.
+// However, this is different from the alt-tab approach
+// mentioned by Raymond Chen in his blog post:
+// https://devblogs.microsoft.com/oldnewthing/20071008-00/?p=24863
+fn is_relevant_window(window: HWND, window_info: WINDOWINFO) -> bool {
+    if !unsafe { IsWindowVisible(window).as_bool() } {
+        return false;
+    }
+    let is_tool_window = (window_info.dwExStyle.0 & WS_EX_TOOLWINDOW.0) != 0;
+    if is_tool_window {
+        return false;
+    }
+    let mut cloaked = 0;
+    let _ = unsafe {
+        DwmGetWindowAttribute(
+            window,
+            DWMWA_CLOAKED,
+            &mut cloaked as *mut _ as *mut c_void,
+            4,
+        )
+    };
+    return cloaked == 0;
 }
 
 fn get_monitor_infos() -> Vec<MonitorInfo> {
@@ -137,7 +163,20 @@ fn get_monitor_infos() -> Vec<MonitorInfo> {
     };
     monitor_infos
 }
-fn add_monitor_info(v: &mut Vec<MonitorInfo>, info: MonitorInfo) {
+fn get_window_infos() -> Vec<WindowInfo> {
+    let mut window_infos = Vec::<WindowInfo>::new();
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_wnd_get_window_infos),
+            LPARAM {
+                0: &mut window_infos as *mut _ as isize,
+            },
+        );
+    }
+    window_infos
+}
+
+fn add_info<T>(v: &mut Vec<T>, info: T) {
     v.push(info);
 }
 
@@ -158,12 +197,27 @@ struct MonitorInfo {
     handle: HMONITOR,
 }
 
+#[derive(Debug)]
+struct WindowInfo {
+    handle: HWND,
+    rect: RECT,
+    // Rectangle data from DWMWA_EXTENDED_FRAME_BOUNDS.
+    // This is useful for programs that use invisible borders.
+    // For example, a maximized vscode window's rect will have
+    // (-8, -8) as its upper left corner. The frame data gives
+    // (0, 0) instead.
+    frame: RECT,
+    monitor: HMONITOR,
+}
+
 fn main() {
     let args = Args::parse();
     let monitor_infos = get_monitor_infos();
+    let window_infos = get_window_infos();
 
     if args.info {
         println!("monitor_infos = {:#?}", monitor_infos);
+        println!("window_infos = {:#?}", window_infos);
         println!("-----------------------------------------------");
         println!("Window Information:");
         println!("-----------------------------------------------");
@@ -173,12 +227,5 @@ fn main() {
         return;
     }
 
-    unsafe {
-        let _ = EnumWindows(
-            Some(enum_wnd_perform_swaps),
-            LPARAM {
-                0: &monitor_infos as *const _ as isize,
-            },
-        );
-    };
+    
 }
