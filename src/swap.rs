@@ -1,4 +1,4 @@
-#[derive(Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Rect {
     pub left: i32,
     pub right: i32,
@@ -53,4 +53,29 @@ fn are_same_size(monitor_a: &MonitorInfo, monitor_b: &MonitorInfo) -> bool {
     (monitor_a.rect.right - monitor_a.rect.left) == (monitor_b.rect.right - monitor_b.rect.left)
         && (monitor_a.rect.bottom - monitor_a.rect.top)
             == (monitor_b.rect.bottom - monitor_b.rect.top)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn qhd_monitor(x: i32, y: i32) -> MonitorInfo {
+        MonitorInfo {
+            rect: Rect {
+                left: x,
+                right: x + 2560,
+                top: y,
+                bottom: y + 1440,
+            },
+        }
+    }
+
+    #[test]
+    fn test_calculate_swap_coords_qhd_pair() {
+        let from = qhd_monitor(0, 0);
+        let to = qhd_monitor(2560, 0);
+        let window = Rect { left: 0, right: 1280, top: 0, bottom: 1440};
+
+        assert_eq!(calculate_swap_coords(from, to, window), Rect{left: 2560, right: 3840, top: 0, bottom: 1440})
+    }
 }
