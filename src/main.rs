@@ -15,12 +15,104 @@ use windows::Win32::{
         Gdi::{EnumDisplayMonitors, MonitorFromWindow, HDC, HMONITOR, MONITOR_DEFAULTTONULL},
     },
     UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowInfo, GetWindowTextLengthW,
-        GetWindowTextW, IsWindowVisible, MoveWindow, WINDOWINFO, WS_EX_TOOLWINDOW,
+        EnumWindows, GetWindowInfo, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible,
+        MoveWindow, WINDOWINFO, WS_EX_TOOLWINDOW,
     },
 };
 
 use crate::swap::calculate_swap_coords;
+
+fn main() {
+    let args = Args::parse();
+    let monitor_infos = get_monitor_infos();
+    let window_infos = get_window_infos();
+    if args.info {
+        println!("Monitor information:");
+        println!("monitor_infos = {:#?}", monitor_infos);
+        println!("-----------------------------------------------");
+        println!("Window Information:");
+        println!("window_infos = {:#?}", window_infos);
+        return;
+    }
+    // Uses MoveWindow. Some other options to consider: SetWindowPlacement and SetWindowPos.
+    let move_window_from_to =
+        |window_info: &WindowInfo, from_monitor: &MonitorInfo, to_monitor: &MonitorInfo| {
+            let new_frame = calculate_swap_coords(
+                swap::MonitorInfo {
+                    rect: win32_rect_to_internal_rect(from_monitor.rect),
+                },
+                swap::MonitorInfo {
+                    rect: win32_rect_to_internal_rect(to_monitor.rect),
+                },
+                win32_rect_to_internal_rect(window_info.frame),
+            );
+            unsafe {
+                let _ = MoveWindow(
+                    window_info.handle,
+                    new_frame.left + (window_info.rect.left - window_info.frame.left),
+                    new_frame.top + (window_info.rect.top - window_info.frame.top),
+                    new_frame.right - new_frame.left
+                        + (window_info.frame.left - window_info.rect.left)
+                        + (window_info.rect.right - window_info.frame.right),
+                    new_frame.bottom - new_frame.top
+                        + (window_info.frame.top - window_info.rect.top)
+                        + (window_info.rect.bottom - window_info.frame.bottom),
+                    true,
+                );
+            }
+        };
+    window_infos.iter().for_each(|window_info| {
+        if window_info.monitor == monitor_infos[args.monitor_a].handle {
+            move_window_from_to(
+                window_info,
+                &monitor_infos[args.monitor_a],
+                &monitor_infos[args.monitor_b],
+            );
+        }
+        if window_info.monitor == monitor_infos[args.monitor_b].handle {
+            move_window_from_to(
+                window_info,
+                &monitor_infos[args.monitor_b],
+                &monitor_infos[args.monitor_a],
+            );
+        }
+    });
+    let filtered_windows: Vec<&WindowInfo> = window_infos
+        .iter()
+        .filter(|window_info| -> bool {
+            window_info.monitor == monitor_infos[args.monitor_a].handle
+                || window_info.monitor == monitor_infos[args.monitor_b].handle
+        })
+        .collect();
+    println!("filtered = {:#?}", filtered_windows);
+}
+
+fn get_monitor_infos() -> Vec<MonitorInfo> {
+    let mut monitor_infos = Vec::<MonitorInfo>::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            HDC::default(),
+            None,
+            Some(enum_dsp_get_monitor_infos),
+            LPARAM {
+                0: &mut monitor_infos as *mut _ as isize,
+            },
+        );
+    };
+    monitor_infos
+}
+fn get_window_infos() -> Vec<WindowInfo> {
+    let mut window_infos = Vec::<WindowInfo>::new();
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_wnd_get_window_infos),
+            LPARAM {
+                0: &mut window_infos as *mut _ as isize,
+            },
+        );
+    }
+    window_infos
+}
 
 unsafe extern "system" fn enum_dsp_get_monitor_infos(
     monitor: HMONITOR,
@@ -70,20 +162,6 @@ unsafe extern "system" fn enum_wnd_get_window_infos(window: HWND, app_data: LPAR
     return TRUE;
 }
 
-// Some other options to consider: SetWindowPlacement and SetWindowPos.
-// let mut new_left = rc_window.left - 2560;
-// if rc_window.right < 100 {
-//     new_left = rc_window.left + 2560;
-// }
-// let _ = MoveWindow(
-//     window,
-//     new_left,
-//     rc_window.top,
-//     rc_window.right - rc_window.left,
-//     rc_window.bottom - rc_window.top,
-//     true,
-// );
-
 fn get_window_info(window: HWND) -> WINDOWINFO {
     let mut window_info = WINDOWINFO {
         cbSize: size_of::<WINDOWINFO>() as u32,
@@ -116,33 +194,6 @@ fn is_relevant_window(window: HWND, window_info: WINDOWINFO) -> bool {
         )
     };
     return cloaked == 0;
-}
-
-fn get_monitor_infos() -> Vec<MonitorInfo> {
-    let mut monitor_infos = Vec::<MonitorInfo>::new();
-    unsafe {
-        let _ = EnumDisplayMonitors(
-            HDC::default(),
-            None,
-            Some(enum_dsp_get_monitor_infos),
-            LPARAM {
-                0: &mut monitor_infos as *mut _ as isize,
-            },
-        );
-    };
-    monitor_infos
-}
-fn get_window_infos() -> Vec<WindowInfo> {
-    let mut window_infos = Vec::<WindowInfo>::new();
-    unsafe {
-        let _ = EnumWindows(
-            Some(enum_wnd_get_window_infos),
-            LPARAM {
-                0: &mut window_infos as *mut _ as isize,
-            },
-        );
-    }
-    window_infos
 }
 
 fn add_info<T>(v: &mut Vec<T>, info: T) {
@@ -178,68 +229,6 @@ struct WindowInfo {
     frame: RECT,
     monitor: HMONITOR,
     name: String,
-}
-
-fn main() {
-    let args = Args::parse();
-    let monitor_infos = get_monitor_infos();
-    let window_infos = get_window_infos();
-    if args.info {
-        println!("Monitor information:");
-        println!("monitor_infos = {:#?}", monitor_infos);
-        println!("-----------------------------------------------");
-        println!("Window Information:");
-        println!("window_infos = {:#?}", window_infos);
-        return;
-    }
-    window_infos.iter().for_each(|window_info| {
-        if window_info.monitor == monitor_infos[args.monitor_a].handle {
-            let new_rect: swap::Rect = calculate_swap_coords(
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(monitor_infos[args.monitor_a].rect),
-                },
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(monitor_infos[args.monitor_b].rect),
-                },
-                win32_rect_to_internal_rect(window_info.frame),
-            );
-            unsafe { let _ = MoveWindow(
-                window_info.handle,
-                new_rect.left + (window_info.rect.left - window_info.frame.left),
-                new_rect.top + (window_info.rect.top - window_info.frame.top),
-                new_rect.right - new_rect.left,
-                new_rect.bottom - new_rect.top,
-                true,
-            ); };
-        }
-        if window_info.monitor == monitor_infos[args.monitor_b].handle {
-            let new_rect: swap::Rect = calculate_swap_coords(
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(monitor_infos[args.monitor_b].rect),
-                },
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(monitor_infos[args.monitor_a].rect),
-                },
-                win32_rect_to_internal_rect(window_info.frame),
-            );
-            unsafe { let _ = MoveWindow(
-                window_info.handle,
-                new_rect.left + (window_info.rect.left - window_info.frame.left),
-                new_rect.top + (window_info.rect.top - window_info.frame.top),
-                new_rect.right - new_rect.left,
-                new_rect.bottom - new_rect.top,
-                true,
-            ); };
-        }
-    });
-    let filtered_windows: Vec<&WindowInfo> = window_infos
-        .iter()
-        .filter(|window_info| -> bool {
-            window_info.monitor == monitor_infos[args.monitor_a].handle
-                || window_info.monitor == monitor_infos[args.monitor_b].handle
-        })
-        .collect();
-    println!("filtered = {:#?}", filtered_windows);
 }
 
 fn win32_rect_to_internal_rect(r: RECT) -> swap::Rect {
