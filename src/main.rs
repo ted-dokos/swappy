@@ -1,10 +1,8 @@
 mod swap;
 
 use std::{
-    iter::FilterMap,
     mem::{size_of, transmute},
     os::raw::c_void,
-    str::from_utf8,
 };
 
 use clap::Parser;
@@ -22,6 +20,7 @@ use windows::Win32::{
 
 use crate::swap::calculate_swap_coords;
 
+#[cfg(target_os = "windows")]
 fn main() {
     let args = Args::parse();
     let monitor_infos = get_monitor_infos();
@@ -87,6 +86,7 @@ fn main() {
     println!("filtered = {:#?}", filtered_windows);
 }
 
+#[cfg(target_os = "windows")]
 fn get_monitor_infos() -> Vec<MonitorInfo> {
     let mut monitor_infos = Vec::<MonitorInfo>::new();
     unsafe {
@@ -101,6 +101,7 @@ fn get_monitor_infos() -> Vec<MonitorInfo> {
     };
     monitor_infos
 }
+#[cfg(target_os = "windows")]
 fn get_window_infos() -> Vec<WindowInfo> {
     let mut window_infos = Vec::<WindowInfo>::new();
     unsafe {
@@ -114,6 +115,7 @@ fn get_window_infos() -> Vec<WindowInfo> {
     window_infos
 }
 
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn enum_dsp_get_monitor_infos(
     monitor: HMONITOR,
     _device_ctx: HDC,
@@ -131,6 +133,7 @@ unsafe extern "system" fn enum_dsp_get_monitor_infos(
     return TRUE;
 }
 
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn enum_wnd_get_window_infos(window: HWND, app_data: LPARAM) -> BOOL {
     let window_info = get_window_info(window);
     if !is_relevant_window(window, window_info) {
@@ -156,12 +159,13 @@ unsafe extern "system" fn enum_wnd_get_window_infos(window: HWND, app_data: LPAR
             rect: window_info.rcWindow,
             frame,
             monitor,
-            name,
+            _name: name,
         },
     );
     return TRUE;
 }
 
+#[cfg(target_os = "windows")]
 fn get_window_info(window: HWND) -> WINDOWINFO {
     let mut window_info = WINDOWINFO {
         cbSize: size_of::<WINDOWINFO>() as u32,
@@ -176,6 +180,7 @@ fn get_window_info(window: HWND) -> WINDOWINFO {
 // However, this is different from the alt-tab approach
 // mentioned by Raymond Chen in his blog post:
 // https://devblogs.microsoft.com/oldnewthing/20071008-00/?p=24863
+#[cfg(target_os = "windows")]
 fn is_relevant_window(window: HWND, window_info: WINDOWINFO) -> bool {
     if !unsafe { IsWindowVisible(window).as_bool() } {
         return false;
@@ -196,6 +201,7 @@ fn is_relevant_window(window: HWND, window_info: WINDOWINFO) -> bool {
     return cloaked == 0;
 }
 
+#[cfg(target_os = "windows")]
 fn add_info<T>(v: &mut Vec<T>, info: T) {
     v.push(info);
 }
@@ -211,12 +217,14 @@ struct Args {
     monitor_b: usize,
 }
 
+#[cfg(target_os = "windows")]
 #[derive(Debug)]
 struct MonitorInfo {
     rect: RECT,
     handle: HMONITOR,
 }
 
+#[cfg(target_os = "windows")]
 #[derive(Debug)]
 struct WindowInfo {
     handle: HWND,
@@ -228,9 +236,10 @@ struct WindowInfo {
     // (0, 0) instead.
     frame: RECT,
     monitor: HMONITOR,
-    name: String,
+    _name: String,
 }
 
+#[cfg(target_os = "windows")]
 fn win32_rect_to_internal_rect(r: RECT) -> swap::Rect {
     swap::Rect {
         left: r.left,
@@ -238,4 +247,9 @@ fn win32_rect_to_internal_rect(r: RECT) -> swap::Rect {
         top: r.top,
         bottom: r.bottom,
     }
+}
+
+#[cfg(target_os = "linux")]
+fn main() {
+    println!("hello linux world!")
 }
