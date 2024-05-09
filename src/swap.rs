@@ -59,6 +59,16 @@ fn are_same_size(monitor_a: &MonitorInfo, monitor_b: &MonitorInfo) -> bool {
 mod tests {
     use super::*;
 
+    fn hd_monitor(x: i32, y: i32) -> MonitorInfo {
+        return MonitorInfo {
+            rect: Rect {
+                left: x,
+                right: x + 1920,
+                top: y,
+                bottom: y + 1080,
+            },
+        };
+    }
     fn qhd_monitor(x: i32, y: i32) -> MonitorInfo {
         MonitorInfo {
             rect: Rect {
@@ -69,13 +79,56 @@ mod tests {
             },
         }
     }
+    fn fourk_monitor(x: i32, y: i32) -> MonitorInfo {
+        return MonitorInfo {
+            rect: Rect {
+                left: x,
+                right: x + 1920 * 2,
+                top: y,
+                bottom: y + 2160,
+            },
+        };
+    }
 
     #[test]
     fn test_calculate_swap_coords_qhd_pair() {
         let from = qhd_monitor(0, 0);
         let to = qhd_monitor(2560, 0);
-        let window = Rect { left: 0, right: 1280, top: 0, bottom: 1440};
+        let window = Rect {
+            left: 0,
+            right: 1280,
+            top: 0,
+            bottom: 1440,
+        };
 
-        assert_eq!(calculate_swap_coords(from, to, window), Rect{left: 2560, right: 3840, top: 0, bottom: 1440})
+        assert_eq!(
+            calculate_swap_coords(from, to, window),
+            Rect {
+                left: 2560,
+                right: 3840,
+                top: 0,
+                bottom: 1440
+            }
+        )
+    }
+    #[test]
+    fn test_calculate_swap_coords_hd_to_4k() {
+        let from = hd_monitor(0, 0);
+        let to = fourk_monitor(1920, 0);
+        let window = Rect{
+            left: 0,
+            right: 960,
+            top: 0,
+            bottom: 1080,
+        };
+        assert_eq!(
+            calculate_swap_coords(from, to, window),
+            Rect {
+                left: 1920,
+                right: 1920 * 2,
+                top: 0,
+                bottom: 2160,
+            }
+        )
     }
 }
