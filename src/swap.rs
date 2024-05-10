@@ -115,7 +115,7 @@ mod tests {
     fn test_calculate_swap_coords_hd_to_4k() {
         let from = hd_monitor(0, 0);
         let to = fourk_monitor(1920, 0);
-        let window = Rect{
+        let window = Rect {
             left: 0,
             right: 960,
             top: 0,

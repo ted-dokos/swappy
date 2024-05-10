@@ -16,13 +16,16 @@ struct Args {
 }
 fn main() {
     let args = Args::parse();
-    #[cfg(target_os = "windows")] {
+    #[cfg(target_os = "windows")]
+    {
         win_main::win_main(args);
     }
-    #[cfg(target_os = "linux")] {
+    #[cfg(target_os = "linux")]
+    {
         println!("Linux not supported yet");
     }
-    #[cfg(target_os = "macos")] {
+    #[cfg(target_os = "macos")]
+    {
         println!("Mac not supported yet");
     }
 }

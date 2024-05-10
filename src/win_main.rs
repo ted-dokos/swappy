@@ -1,3 +1,8 @@
+use crate::{swap, Args};
+use std::{
+    mem::{size_of, transmute},
+    os::raw::c_void,
+};
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, RECT, TRUE},
     Graphics::{
@@ -9,11 +14,6 @@ use windows::Win32::{
         MoveWindow, WINDOWINFO, WS_EX_TOOLWINDOW,
     },
 };
-use std::{
-    mem::{size_of, transmute},
-    os::raw::c_void,
-};
-use crate::{swap, Args};
 
 pub fn win_main(args: Args) {
     let monitor_infos = get_monitor_infos();
