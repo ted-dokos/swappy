@@ -18,7 +18,7 @@ use windows::Win32::{
 pub fn win_main(args: Args) {
     let monitor_infos = get_monitor_infos();
     let window_infos = get_window_infos();
-    if args.info {
+    if args.info.unwrap_or(false) {
         println!("Monitor information:");
         println!("monitor_infos = {:#?}", monitor_infos);
         println!("-----------------------------------------------");

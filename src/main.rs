@@ -7,8 +7,8 @@ mod win_main;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = false)]
-    info: bool,
+    #[arg(short, long)]
+    info: Option<bool>,
     #[arg(default_value_t = 0)]
     monitor_a: usize,
     #[arg(default_value_t = 1)]
