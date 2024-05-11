@@ -7,10 +7,23 @@ mod win_main;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// Print info about the active monitors and windows (no swaps occur).
+    /// 
+    /// Blah blah blah here's more info.
     #[arg(short, long, default_value_t = false)]
     info: bool,
+
+    /// Swap a sub-region of monitor A.
+    #[arg(long = "subrectangle_A")]
+    subrectangle_a: Option<String>,
+
+    /// Swap a sub-region of monitor B.
+    #[arg(long = "subrectangle_B")]
+    subrectangle_b: Option<String>,
+
     #[arg(default_value_t = 0)]
     monitor_a: usize,
+    
     #[arg(default_value_t = 1)]
     monitor_b: usize,
 }
