@@ -10,8 +10,8 @@ struct Args {
     /// Print info about the active monitors and windows (no swaps occur).
     /// 
     /// Blah blah blah here's more info.
-    #[arg(short, long, default_value_t = false)]
-    info: bool,
+    #[arg(short, long)]
+    info: Option<bool>,
 
     /// Swap a sub-region of monitor A.
     #[arg(long = "subrectangle_A")]
