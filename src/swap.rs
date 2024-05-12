@@ -1,4 +1,4 @@
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Rect {
     pub left: i32,
     pub right: i32,
@@ -19,6 +19,20 @@ impl Rect {
 #[derive(Default, PartialEq, Eq)]
 pub struct MonitorInfo {
     pub rect: Rect,
+    pub sub_rect: Option<Rect>,
+}
+impl MonitorInfo {
+    pub fn New(left: i32, right: i32, top: i32, bottom: i32) -> Self {
+        return MonitorInfo {
+            rect: Rect {
+                left,
+                right,
+                top,
+                bottom,
+            },
+            sub_rect: None,
+        };
+    }
 }
 
 pub fn calculate_swap_coords(
@@ -60,34 +74,13 @@ mod tests {
     use super::*;
 
     fn hd_monitor(x: i32, y: i32) -> MonitorInfo {
-        return MonitorInfo {
-            rect: Rect {
-                left: x,
-                right: x + 1920,
-                top: y,
-                bottom: y + 1080,
-            },
-        };
+        return MonitorInfo::New(x, x + 1920, y, y + 1080);
     }
     fn qhd_monitor(x: i32, y: i32) -> MonitorInfo {
-        MonitorInfo {
-            rect: Rect {
-                left: x,
-                right: x + 2560,
-                top: y,
-                bottom: y + 1440,
-            },
-        }
+        return MonitorInfo::New(x, x + 2560, y, y + 1440);
     }
     fn fourk_monitor(x: i32, y: i32) -> MonitorInfo {
-        return MonitorInfo {
-            rect: Rect {
-                left: x,
-                right: x + 1920 * 2,
-                top: y,
-                bottom: y + 2160,
-            },
-        };
+        return MonitorInfo::New(x, x + 1920 * 2, y, y + 2160);
     }
 
     #[test]

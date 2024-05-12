@@ -18,7 +18,7 @@ use windows::Win32::{
 pub fn win_main(args: Args) {
     let monitor_infos = get_monitor_infos();
     let window_infos = get_window_infos();
-    if args.info.unwrap_or(false) {
+    if args.info {
         println!("Monitor information:");
         println!("monitor_infos = {:#?}", monitor_infos);
         println!("-----------------------------------------------");
@@ -27,45 +27,54 @@ pub fn win_main(args: Args) {
         return;
     }
     // Uses MoveWindow. Some other options to consider: SetWindowPlacement and SetWindowPos.
-    let move_window_from_to =
-        |window_info: &WindowInfo, from_monitor: &MonitorInfo, to_monitor: &MonitorInfo| {
-            let new_frame = swap::calculate_swap_coords(
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(from_monitor.rect),
-                },
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(to_monitor.rect),
-                },
-                win32_rect_to_internal_rect(window_info.frame),
+    let move_window_from_to = |window_info: &WindowInfo,
+                               from_monitor: &MonitorInfo,
+                               from_sub_rect: Option<swap::Rect>,
+                               to_monitor: &MonitorInfo,
+                               to_sub_rect: Option<swap::Rect>| {
+        let new_frame = swap::calculate_swap_coords(
+            swap::MonitorInfo {
+                rect: win32_rect_to_internal_rect(from_monitor.rect),
+                sub_rect: from_sub_rect,
+            },
+            swap::MonitorInfo {
+                rect: win32_rect_to_internal_rect(to_monitor.rect),
+                sub_rect: to_sub_rect,
+            },
+            win32_rect_to_internal_rect(window_info.frame),
+        );
+        unsafe {
+            let _ = MoveWindow(
+                window_info.handle,
+                new_frame.left + (window_info.rect.left - window_info.frame.left),
+                new_frame.top + (window_info.rect.top - window_info.frame.top),
+                new_frame.right - new_frame.left
+                    + (window_info.frame.left - window_info.rect.left)
+                    + (window_info.rect.right - window_info.frame.right),
+                new_frame.bottom - new_frame.top
+                    + (window_info.frame.top - window_info.rect.top)
+                    + (window_info.rect.bottom - window_info.frame.bottom),
+                true,
             );
-            unsafe {
-                let _ = MoveWindow(
-                    window_info.handle,
-                    new_frame.left + (window_info.rect.left - window_info.frame.left),
-                    new_frame.top + (window_info.rect.top - window_info.frame.top),
-                    new_frame.right - new_frame.left
-                        + (window_info.frame.left - window_info.rect.left)
-                        + (window_info.rect.right - window_info.frame.right),
-                    new_frame.bottom - new_frame.top
-                        + (window_info.frame.top - window_info.rect.top)
-                        + (window_info.rect.bottom - window_info.frame.bottom),
-                    true,
-                );
-            }
-        };
+        }
+    };
     window_infos.iter().for_each(|window_info| {
         if window_info.monitor == monitor_infos[args.monitor_a].handle {
             move_window_from_to(
                 window_info,
                 &monitor_infos[args.monitor_a],
+                args.subrectangle_a,
                 &monitor_infos[args.monitor_b],
+                args.subrectangle_b,
             );
         }
         if window_info.monitor == monitor_infos[args.monitor_b].handle {
             move_window_from_to(
                 window_info,
                 &monitor_infos[args.monitor_b],
+                args.subrectangle_b,
                 &monitor_infos[args.monitor_a],
+                args.subrectangle_a,
             );
         }
     });
