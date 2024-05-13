@@ -40,12 +40,15 @@ pub fn calculate_swap_coords(
     to_monitor: MonitorInfo,
     window: Rect,
 ) -> Rect {
-    if are_same_size(&from_monitor, &to_monitor) {
+    let from_rect = get_monitor_region(&from_monitor);
+    let to_rect = get_monitor_region(&to_monitor);
+    if are_same_size(&from_rect, &to_rect) {
         return window.translate(
-            to_monitor.rect.left - from_monitor.rect.left,
+            to_rect.left - from_monitor.rect.left,
             to_monitor.rect.top - from_monitor.rect.top,
         );
     }
+    
     let from_width = from_monitor.rect.right - from_monitor.rect.left;
     let left_pct = (window.left - from_monitor.rect.left) as f64 / from_width as f64;
     let right_pct = (window.right - from_monitor.rect.left) as f64 / from_width as f64;
@@ -63,10 +66,22 @@ pub fn calculate_swap_coords(
     }
 }
 
-fn are_same_size(monitor_a: &MonitorInfo, monitor_b: &MonitorInfo) -> bool {
-    (monitor_a.rect.right - monitor_a.rect.left) == (monitor_b.rect.right - monitor_b.rect.left)
-        && (monitor_a.rect.bottom - monitor_a.rect.top)
-            == (monitor_b.rect.bottom - monitor_b.rect.top)
+fn get_monitor_region(m: &MonitorInfo) -> Rect {
+    if m.sub_rect.is_none() {
+        return m.rect;
+    }
+    let sub_rect = &m.sub_rect.unwrap();
+    return Rect {
+        left: m.rect.left + sub_rect.left,
+        right: m.rect.left + sub_rect.right,
+        top: m.rect.top + sub_rect.top,
+        bottom: m.rect.top + sub_rect.bottom,
+    };
+}
+
+fn are_same_size(rect_1: &Rect, rect_2: &Rect) -> bool {
+    return (rect_1.right - rect_1.left) == (rect_2.right - rect_2.left)
+        && (rect_1.bottom - rect_1.top) == (rect_2.bottom - rect_2.top);
 }
 
 #[cfg(test)]
