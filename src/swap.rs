@@ -36,35 +36,99 @@ impl MonitorInfo {
 }
 
 pub fn calculate_swap_coords(
-    from_monitor: MonitorInfo,
-    to_monitor: MonitorInfo,
+    region_a: Rect,
+    region_b: Rect,
     window: Rect,
+    overlap_threshold: f32,
 ) -> Rect {
-    let from_rect = get_monitor_region(&from_monitor);
-    let to_rect = get_monitor_region(&to_monitor);
-    if are_same_size(&from_rect, &to_rect) {
-        return window.translate(
-            to_rect.left - from_monitor.rect.left,
-            to_monitor.rect.top - from_monitor.rect.top,
-        );
+    let overlaps_a = window_overlap(window, region_a) >= overlap_threshold;
+    let overlaps_b = window_overlap(window, region_b) >= overlap_threshold;
+    if !overlaps_a && !overlaps_b {
+        return window;
     }
-    
-    let from_width = from_monitor.rect.right - from_monitor.rect.left;
-    let left_pct = (window.left - from_monitor.rect.left) as f64 / from_width as f64;
-    let right_pct = (window.right - from_monitor.rect.left) as f64 / from_width as f64;
-    let from_height = from_monitor.rect.bottom - from_monitor.rect.top;
-    let top_pct = (window.top - from_monitor.rect.top) as f64 / from_height as f64;
-    let bottom_pct = (window.bottom - from_monitor.rect.top) as f64 / from_height as f64;
 
-    let to_width = to_monitor.rect.right - to_monitor.rect.left;
-    let to_height = to_monitor.rect.bottom - to_monitor.rect.top;
-    Rect {
-        left: to_monitor.rect.left + (left_pct * to_width as f64) as i32,
-        right: to_monitor.rect.left + (right_pct * to_width as f64) as i32,
-        top: to_monitor.rect.top + (top_pct * to_height as f64) as i32,
-        bottom: to_monitor.rect.top + (bottom_pct * to_height as f64) as i32,
+    // let from_rect = get_monitor_region(&from_monitor);
+    // let to_rect = get_monitor_region(&to_monitor);
+    // if are_same_size(&from_rect, &to_rect) {
+    //     return window.translate(
+    //         to_rect.left - from_monitor.rect.left,
+    //         to_monitor.rect.top - from_monitor.rect.top,
+    //     );
+    // }
+
+    // let from_width = from_monitor.rect.right - from_monitor.rect.left;
+    // let left_pct = (window.left - from_monitor.rect.left) as f64 / from_width as f64;
+    // let right_pct = (window.right - from_monitor.rect.left) as f64 / from_width as f64;
+    // let from_height = from_monitor.rect.bottom - from_monitor.rect.top;
+    // let top_pct = (window.top - from_monitor.rect.top) as f64 / from_height as f64;
+    // let bottom_pct = (window.bottom - from_monitor.rect.top) as f64 / from_height as f64;
+
+    // let to_width = to_monitor.rect.right - to_monitor.rect.left;
+    // let to_height = to_monitor.rect.bottom - to_monitor.rect.top;
+    // Rect {
+    //     left: to_monitor.rect.left + (left_pct * to_width as f64) as i32,
+    //     right: to_monitor.rect.left + (right_pct * to_width as f64) as i32,
+    //     top: to_monitor.rect.top + (top_pct * to_height as f64) as i32,
+    //     bottom: to_monitor.rect.top + (bottom_pct * to_height as f64) as i32,
+    // }
+    Rect{ left: todo!(), right: todo!(), top: todo!(), bottom: todo!() }
+}
+
+/// Calculate what percentage of window overlaps with region, by area.
+fn window_overlap(window: Rect, region: Rect) -> f32 {
+    let width = window.right - window.left;
+    let height = window.bottom - window.top;
+    let maybe_clamped = clamp_to_region(window, region);
+    match maybe_clamped {
+        Ok(clamped) => {
+            let clamped_width = clamped.right - clamped.left;
+            let clamped_height = clamped.bottom - clamped.top;
+            return (clamped_width as f32 / width as f32) * (clamped_height as f32 / height as f32);
+        }
+        Err(_) => {
+            return 0.0;
+        }
     }
 }
+
+/// Clamp a rectangle to live entirely within a region, if possible.
+fn clamp_to_region(rect: Rect, region: Rect) -> Result<Rect, NoOverlapError> {
+    if rect.right <= region.left
+        || rect.left >= region.right
+        || rect.bottom <= rect.top
+        || rect.top >= region.bottom
+    {
+        return Err(NoOverlapError {});
+    }
+    let left = if rect.left <= region.left {
+        region.left
+    } else {
+        rect.left
+    };
+    let right = if rect.right >= region.right {
+        region.right
+    } else {
+        rect.right
+    };
+    let top = if rect.top <= region.top {
+        region.top
+    } else {
+        rect.top
+    };
+    let bottom = if rect.bottom >= region.bottom {
+        region.bottom
+    } else {
+        rect.bottom
+    };
+    return Ok(Rect {
+        left,
+        right,
+        top,
+        bottom,
+    });
+}
+
+struct NoOverlapError {}
 
 fn get_monitor_region(m: &MonitorInfo) -> Rect {
     if m.sub_rect.is_none() {
@@ -98,45 +162,45 @@ mod tests {
         return MonitorInfo::New(x, x + 1920 * 2, y, y + 2160);
     }
 
-    #[test]
-    fn test_calculate_swap_coords_qhd_pair() {
-        let from = qhd_monitor(0, 0);
-        let to = qhd_monitor(2560, 0);
-        let window = Rect {
-            left: 0,
-            right: 1280,
-            top: 0,
-            bottom: 1440,
-        };
+//     #[test]
+//     fn test_calculate_swap_coords_qhd_pair() {
+//         let from = qhd_monitor(0, 0);
+//         let to = qhd_monitor(2560, 0);
+//         let window = Rect {
+//             left: 0,
+//             right: 1280,
+//             top: 0,
+//             bottom: 1440,
+//         };
 
-        assert_eq!(
-            calculate_swap_coords(from, to, window),
-            Rect {
-                left: 2560,
-                right: 3840,
-                top: 0,
-                bottom: 1440
-            }
-        )
-    }
-    #[test]
-    fn test_calculate_swap_coords_hd_to_4k() {
-        let from = hd_monitor(0, 0);
-        let to = fourk_monitor(1920, 0);
-        let window = Rect {
-            left: 0,
-            right: 960,
-            top: 0,
-            bottom: 1080,
-        };
-        assert_eq!(
-            calculate_swap_coords(from, to, window),
-            Rect {
-                left: 1920,
-                right: 1920 * 2,
-                top: 0,
-                bottom: 2160,
-            }
-        )
-    }
+//         assert_eq!(
+//             calculate_swap_coords(from, to, window),
+//             Rect {
+//                 left: 2560,
+//                 right: 3840,
+//                 top: 0,
+//                 bottom: 1440
+//             }
+//         )
+//     }
+//     #[test]
+//     fn test_calculate_swap_coords_hd_to_4k() {
+//         let from = hd_monitor(0, 0);
+//         let to = fourk_monitor(1920, 0);
+//         let window = Rect {
+//             left: 0,
+//             right: 960,
+//             top: 0,
+//             bottom: 1080,
+//         };
+//         assert_eq!(
+//             calculate_swap_coords(from, to, window),
+//             Rect {
+//                 left: 1920,
+//                 right: 1920 * 2,
+//                 top: 0,
+//                 bottom: 2160,
+//             }
+//         )
+//     }
 }

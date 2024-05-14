@@ -1,63 +1,11 @@
+use std::num::ParseIntError;
+
 use clap::Parser;
 
 mod swap;
 #[cfg(target_os = "windows")]
 mod win_main;
 
-fn sub_rect_parser(s: &str) -> Result<swap::Rect, String> {
-    let vec: Vec<u16> = s
-        .split('-')
-        .map(|x| x.parse::<u16>().unwrap())
-        .collect();
-    if vec.len() == 4 {
-        return Ok(swap::Rect {
-            left: vec[0] as i32,
-            right: vec[1] as i32,
-            top: vec[2] as i32,
-            bottom: vec[3] as i32,
-        });
-    }
-    return Err(concat!(
-        "Subrectangle input should be a dash-separated list of four numbers: ",
-        "left-right-top-bottom"
-    )
-    .to_owned());
-}
-
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// Print info about the active monitors and windows (no swaps occur).
-    ///
-    /// Can be used to get screen measurements, and figure out which monitor
-    /// corresponds to which index.
-    #[arg(short, long)]
-    info: bool,
-
-    /// Swap a sub-region of monitor A.
-    ///
-    /// This should be a dash-separated list of four numbers left-right-top-bottom.
-    /// This uses relative coordinates: the top left corner of the monitor should
-    /// always be expressed as left=0, top=0, regardless of where the monitor is 
-    /// located in virtual coordinates.
-    #[arg(long = "subA", value_parser = sub_rect_parser)]
-    subrectangle_a: Option<swap::Rect>,
-
-    /// Swap a sub-region of monitor B.
-    /// 
-    /// This should be a dash-separated list of four numbers left-right-top-bottom.
-    /// This uses relative coordinates: the top left corner of the monitor should
-    /// always be expressed as left=0, top=0, regardless of where the monitor is 
-    /// located in virtual coordinates.
-    #[arg(long = "subB", value_parser = sub_rect_parser)]
-    subrectangle_b: Option<swap::Rect>,
-
-    #[arg(default_value_t = 0)]
-    monitor_a: usize,
-
-    #[arg(default_value_t = 1)]
-    monitor_b: usize,
-}
 fn main() {
     let args = Args::parse();
     #[cfg(target_os = "windows")]
@@ -72,4 +20,85 @@ fn main() {
     {
         println!("Mac not supported yet");
     }
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Print info about the active monitors and windows (no swaps occur).
+    ///
+    /// Can be used to get screen measurements, and figure out which monitor
+    /// corresponds to which index.
+    #[arg(short, long)]
+    info: bool,
+
+    #[arg(value_parser = region_parser, default_value_t = Region::Monitor(0))]
+    monitor_a: Region,
+
+    #[arg(value_parser = region_parser, default_value_t = Region::Monitor(1))]
+    monitor_b: Region,
+
+    #[arg(short, long, default_value_t = 0.80)]
+    overlap_threshold: f32,
+}
+
+#[derive(Clone, Debug)]
+enum Region {
+    Monitor(u32),
+    Rect(swap::Rect),
+}
+impl std::fmt::Display for Region {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Region::Monitor(idx) => {
+                return write!(f, "{}", idx);
+            }
+            Region::Rect(rect) => {
+                return write!(
+                    f,
+                    "{{{}, {}, {}, {}}}",
+                    rect.left, rect.top, rect.right, rect.bottom
+                );
+            }
+        }
+    }
+}
+
+fn region_parser(s: &str) -> Result<Region, String> {
+    if s.trim().starts_with('{') {
+        let nums: Vec<Result<i32, ParseIntError>> = s
+            .trim()
+            .strip_prefix('{')
+            .unwrap_or("")
+            .strip_suffix('}')
+            .unwrap_or("")
+            .split(',')
+            .map(|x| x.parse::<i32>())
+            .collect();
+
+        let err_str = format!(
+            concat!(
+                "Could not parse rectangular region input {}. ",
+                "Should be a string of the form {{left, top, right, bottom}}."
+            ),
+            s
+        );
+        if nums.iter().any(|res| res.is_err()) {
+            return Err(err_str.to_owned());
+        }
+        if nums.len() != 4 {
+            return Err(err_str.to_owned());
+        }
+        return Ok(Region::Rect(swap::Rect {
+            left: nums[0].clone().unwrap(),
+            right: nums[2].clone().unwrap(),
+            top: nums[1].clone().unwrap(),
+            bottom: nums[3].clone().unwrap(),
+        }));
+    }
+    let monitor_index = s.parse::<u32>();
+    if monitor_index.is_err() {
+        return Err(format!("Could not parse region input {}.", s).to_owned());
+    }
+    return Ok(Region::Monitor(monitor_index.unwrap()));
 }
