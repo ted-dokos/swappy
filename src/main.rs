@@ -66,20 +66,13 @@ impl std::fmt::Display for Region {
 
 fn region_parser(s: &str) -> Result<Region, String> {
     if s.trim().starts_with('{') {
-        let nums: Vec<Result<i32, ParseIntError>> = s
-            .trim()
-            .strip_prefix('{')
-            .unwrap_or("")
-            .strip_suffix('}')
-            .unwrap_or("")
-            .split(',')
-            .map(|x| x.parse::<i32>())
-            .collect();
+        let nums: Vec<Result<i32, ParseIntError>> =
+            s.split(',').map(|x| x.parse::<i32>()).collect();
 
         let err_str = format!(
             concat!(
                 "Could not parse rectangular region input {}. ",
-                "Should be a string of the form {{left, top, right, bottom}}."
+                "Should be a string of the form \"left, top, right, bottom\"."
             ),
             s
         );
