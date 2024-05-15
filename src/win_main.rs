@@ -1,4 +1,7 @@
-use crate::{swap, Args};
+use crate::{
+    swap::{self, calculate_swap_coords},
+    Args, Region,
+};
 use std::{
     mem::{size_of, transmute},
     os::raw::c_void,
@@ -18,7 +21,7 @@ use windows::Win32::{
 pub fn win_main(args: Args) {
     let monitor_infos = get_monitor_infos();
     let window_infos = get_window_infos();
-    if args.info.unwrap_or(false) {
+    if args.info {
         println!("Monitor information:");
         println!("monitor_infos = {:#?}", monitor_infos);
         println!("-----------------------------------------------");
@@ -26,48 +29,53 @@ pub fn win_main(args: Args) {
         println!("window_infos = {:#?}", window_infos);
         return;
     }
-    // Uses MoveWindow. Some other options to consider: SetWindowPlacement and SetWindowPos.
-    let move_window_from_to =
-        |window_info: &WindowInfo, from_monitor: &MonitorInfo, to_monitor: &MonitorInfo| {
-            let new_frame = swap::calculate_swap_coords(
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(from_monitor.rect),
-                },
-                swap::MonitorInfo {
-                    rect: win32_rect_to_internal_rect(to_monitor.rect),
-                },
-                win32_rect_to_internal_rect(window_info.frame),
-            );
-            unsafe {
-                let _ = MoveWindow(
-                    window_info.handle,
-                    new_frame.left + (window_info.rect.left - window_info.frame.left),
-                    new_frame.top + (window_info.rect.top - window_info.frame.top),
-                    new_frame.right - new_frame.left
-                        + (window_info.frame.left - window_info.rect.left)
-                        + (window_info.rect.right - window_info.frame.right),
-                    new_frame.bottom - new_frame.top
-                        + (window_info.frame.top - window_info.rect.top)
-                        + (window_info.rect.bottom - window_info.frame.bottom),
-                    true,
-                );
-            }
-        };
+    let region_a_rect = get_rect_from_region(&args.monitor_a, &monitor_infos);
+    let region_b_rect = get_rect_from_region(&args.monitor_b, &monitor_infos);
+
     window_infos.iter().for_each(|window_info| {
-        if window_info.monitor == monitor_infos[args.monitor_a].handle {
-            move_window_from_to(
-                window_info,
-                &monitor_infos[args.monitor_a],
-                &monitor_infos[args.monitor_b],
+        let old_rect = win32_rect_to_internal_rect(window_info.frame);
+        let new_rect = calculate_swap_coords(
+            region_a_rect,
+            region_b_rect,
+            old_rect,
+            args.overlap_threshold,
+        );
+        if old_rect == new_rect {
+            return;
+        }
+        let margin_left = window_info.rect.left - window_info.frame.left;
+        let margin_right = window_info.rect.right - window_info.frame.right;
+        let margin_top = window_info.rect.top - window_info.frame.top;
+        let margin_bottom = window_info.rect.bottom - window_info.frame.bottom;
+        unsafe {
+            let _ = MoveWindow(
+                window_info.handle,
+                new_rect.left + margin_left,
+                new_rect.top + margin_top,
+                new_rect.right - new_rect.left - margin_left + margin_right,
+                new_rect.bottom - new_rect.top - margin_top + margin_bottom,
+                true,
             );
         }
-        if window_info.monitor == monitor_infos[args.monitor_b].handle {
-            move_window_from_to(
-                window_info,
-                &monitor_infos[args.monitor_b],
-                &monitor_infos[args.monitor_a],
-            );
-        }
+
+        // if window_info.monitor == monitor_infos[args.monitor_a].handle {
+        //     move_window_from_to(
+        //         window_info,
+        //         &monitor_infos[args.monitor_a],
+        //         args.subrectangle_a,
+        //         &monitor_infos[args.monitor_b],
+        //         args.subrectangle_b,
+        //     );
+        // }
+        // if window_info.monitor == monitor_infos[args.monitor_b].handle {
+        //     move_window_from_to(
+        //         window_info,
+        //         &monitor_infos[args.monitor_b],
+        //         args.subrectangle_b,
+        //         &monitor_infos[args.monitor_a],
+        //         args.subrectangle_a,
+        //     );
+        // }
     });
 }
 
@@ -109,7 +117,7 @@ unsafe extern "system" fn enum_dsp_get_monitor_infos(
     add_info(
         v,
         MonitorInfo {
-            handle: monitor,
+            _handle: monitor,
             rect: *rect,
         },
     );
@@ -140,7 +148,7 @@ unsafe extern "system" fn enum_wnd_get_window_infos(window: HWND, app_data: LPAR
             handle: window,
             rect: window_info.rcWindow,
             frame,
-            monitor,
+            _monitor: monitor,
             _name: name,
         },
     );
@@ -185,10 +193,19 @@ fn add_info<T>(v: &mut Vec<T>, info: T) {
     v.push(info);
 }
 
+fn get_rect_from_region(region: &Region, monitor_infos: &Vec<MonitorInfo>) -> swap::Rect {
+    match region {
+        Region::Monitor(index) => {
+            return win32_rect_to_internal_rect(monitor_infos[*index as usize].rect)
+        }
+        Region::Rect(r) => return r.clone(),
+    }
+}
+
 #[derive(Debug)]
 struct MonitorInfo {
     rect: RECT,
-    handle: HMONITOR,
+    _handle: HMONITOR,
 }
 
 #[derive(Debug)]
@@ -201,7 +218,7 @@ struct WindowInfo {
     // (-8, -8) as its upper left corner. The frame data gives
     // (0, 0) instead.
     frame: RECT,
-    monitor: HMONITOR,
+    _monitor: HMONITOR,
     _name: String,
 }
 
