@@ -73,13 +73,13 @@ pub fn calculate_swap_coords(
         to_rect.top
     } else {
         let top_pct = (window_clamped.top - from_rect.top) as f32 / from_height as f32;
-        to_rect.left + (top_pct * to_height as f32) as i32
+        to_rect.top + (top_pct * to_height as f32) as i32
     };
     let bottom = if window_clamped.bottom == from_rect.bottom {
         to_rect.bottom
     } else {
         let bottom_pct = (window_clamped.bottom - from_rect.top) as f32 / from_height as f32;
-        to_rect.left + (bottom_pct * to_height as f32) as i32
+        to_rect.top + (bottom_pct * to_height as f32) as i32
     };
     Rect {
         left,
@@ -177,6 +177,36 @@ mod tests {
         return MonitorInfo::new(x, x + 1920 * 2, y, y + 2160);
     }
 
+    #[test]
+    fn test_wtf() {
+        let w = Rect {
+            left: 0,
+            right: 853,
+            top: 720,
+            bottom: 1440,
+        };
+        let from = Rect {
+            left: 0,
+            right: 850,
+            top: 0,
+            bottom: 1440,
+        };
+        let to = Rect {
+            left: 850,
+            right: 2560,
+            top: 0,
+            bottom: 1440,
+        };
+        assert_eq!(
+            calculate_swap_coords(from, to, w, 0.8),
+            Rect {
+                left: 850,
+                right: 2560,
+                top: 720,
+                bottom: 1440
+            }
+        )
+    }
     //     #[test]
     //     fn test_calculate_swap_coords_qhd_pair() {
     //         let from = qhd_monitor(0, 0);
