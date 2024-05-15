@@ -29,8 +29,8 @@ pub fn win_main(args: Args) {
         println!("window_infos = {:#?}", window_infos);
         return;
     }
-    let region_a_rect = get_rect_from_region(&args.monitor_a, &monitor_infos);
-    let region_b_rect = get_rect_from_region(&args.monitor_b, &monitor_infos);
+    let region_a_rect = get_rect_from_region(&args.region_a, &monitor_infos);
+    let region_b_rect = get_rect_from_region(&args.region_b, &monitor_infos);
 
     window_infos.iter().for_each(|window_info| {
         let old_rect = win32_rect_to_internal_rect(window_info.frame);

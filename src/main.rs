@@ -88,11 +88,21 @@ struct Args {
     /// In this case, the region is the rectangle spanned
     /// by (left, top) to (right, bottom).
     #[arg(value_parser = region_parser, default_value_t = Region::Monitor(0))]
-    monitor_a: Region,
+    region_a: Region,
 
+    /// Second region to switch contents.
+    /// 
+    /// This field can be a single positive integer,
+    /// in which case it represents the index of one of your monitors.
+    /// The region is the entirety of the monitor.
+    /// 
+    /// It can also be a string of four integers, "left, top, right, bottom".
+    /// In this case, the region is the rectangle spanned
+    /// by (left, top) to (right, bottom).
     #[arg(value_parser = region_parser, default_value_t = Region::Monitor(1))]
-    monitor_b: Region,
+    region_b: Region,
 
+    /// Threshold used to decide if a window is inside a region.
     #[arg(short, long, default_value_t = 0.80)]
     overlap_threshold: f32,
 }
