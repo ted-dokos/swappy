@@ -78,13 +78,29 @@ pub fn win_main(args: Args) {
     //     }
     // };
     window_infos.iter().for_each(|window_info| {
-        let old_rect = win32_rect_to_internal_rect(window_info.rect);
-        let new_rect = calculate_swap_coords(region_a_rect, region_b_rect, old_rect, args.overlap_threshold);
-        if old_rect != new_rect {
+        let old_rect = win32_rect_to_internal_rect(window_info.frame);
+        let new_rect = calculate_swap_coords(
+            region_a_rect,
+            region_b_rect,
+            old_rect,
+            args.overlap_threshold,
+        );
+        if old_rect == new_rect {
             return;
         }
+        let margin_left = window_info.rect.left - window_info.frame.left;
+        let margin_right = window_info.rect.right - window_info.frame.right;
+        let margin_top = window_info.rect.top - window_info.frame.top;
+        let margin_bottom = window_info.rect.bottom - window_info.frame.bottom;
         unsafe {
-            MoveWindow(window_info.handle, 0, 0, 1000, 1000, true);
+            let _ = MoveWindow(
+                window_info.handle,
+                new_rect.left + margin_left,
+                new_rect.top + margin_top,
+                new_rect.right - new_rect.left - margin_left + margin_right,
+                new_rect.bottom - new_rect.top - margin_top + margin_bottom,
+                true,
+            );
         }
 
         // if window_info.monitor == monitor_infos[args.monitor_a].handle {

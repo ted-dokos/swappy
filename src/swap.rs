@@ -22,7 +22,7 @@ pub struct MonitorInfo {
     pub sub_rect: Option<Rect>,
 }
 impl MonitorInfo {
-    pub fn New(left: i32, right: i32, top: i32, bottom: i32) -> Self {
+    pub fn new(left: i32, right: i32, top: i32, bottom: i32) -> Self {
         return MonitorInfo {
             rect: Rect {
                 left,
@@ -46,32 +46,47 @@ pub fn calculate_swap_coords(
     if !overlaps_a && !overlaps_b {
         return window;
     }
-
-    // let from_rect = get_monitor_region(&from_monitor);
-    // let to_rect = get_monitor_region(&to_monitor);
-    // if are_same_size(&from_rect, &to_rect) {
-    //     return window.translate(
-    //         to_rect.left - from_monitor.rect.left,
-    //         to_monitor.rect.top - from_monitor.rect.top,
-    //     );
-    // }
-
-    // let from_width = from_monitor.rect.right - from_monitor.rect.left;
-    // let left_pct = (window.left - from_monitor.rect.left) as f64 / from_width as f64;
-    // let right_pct = (window.right - from_monitor.rect.left) as f64 / from_width as f64;
-    // let from_height = from_monitor.rect.bottom - from_monitor.rect.top;
-    // let top_pct = (window.top - from_monitor.rect.top) as f64 / from_height as f64;
-    // let bottom_pct = (window.bottom - from_monitor.rect.top) as f64 / from_height as f64;
-
-    // let to_width = to_monitor.rect.right - to_monitor.rect.left;
-    // let to_height = to_monitor.rect.bottom - to_monitor.rect.top;
-    // Rect {
-    //     left: to_monitor.rect.left + (left_pct * to_width as f64) as i32,
-    //     right: to_monitor.rect.left + (right_pct * to_width as f64) as i32,
-    //     top: to_monitor.rect.top + (top_pct * to_height as f64) as i32,
-    //     bottom: to_monitor.rect.top + (bottom_pct * to_height as f64) as i32,
-    // }
-    Rect{ left: todo!(), right: todo!(), top: todo!(), bottom: todo!() }
+    let from_rect = if overlaps_a { region_a } else { region_b };
+    let to_rect = if overlaps_a { region_b } else { region_a };
+    let window_clamped = clamp_to_region(window, from_rect).unwrap_or(window);
+    if are_same_size(&from_rect, &to_rect) {
+        return window_clamped
+            .translate(to_rect.left - from_rect.left, to_rect.top - from_rect.top);
+    }
+    let from_width = from_rect.right - from_rect.left;
+    let from_height = from_rect.bottom - from_rect.top;
+    let to_width = to_rect.right - to_rect.left;
+    let to_height = to_rect.bottom - to_rect.top;
+    let left = if window_clamped.left == from_rect.left {
+        to_rect.left
+    } else {
+        let left_pct = (window_clamped.left - from_rect.left) as f32 / from_width as f32;
+        to_rect.left + (left_pct * to_width as f32) as i32
+    };
+    let right = if window_clamped.right == from_rect.right {
+        to_rect.right
+    } else {
+        let right_pct = (window_clamped.right - from_rect.left) as f32 / from_width as f32;
+        to_rect.left + (right_pct * to_width as f32) as i32
+    };
+    let top = if window_clamped.top == from_rect.top {
+        to_rect.top
+    } else {
+        let top_pct = (window_clamped.top - from_rect.top) as f32 / from_height as f32;
+        to_rect.left + (top_pct * to_height as f32) as i32
+    };
+    let bottom = if window_clamped.bottom == from_rect.bottom {
+        to_rect.bottom
+    } else {
+        let bottom_pct = (window_clamped.bottom - from_rect.top) as f32 / from_height as f32;
+        to_rect.left + (bottom_pct * to_height as f32) as i32
+    };
+    Rect {
+        left,
+        right,
+        top,
+        bottom,
+    }
 }
 
 /// Calculate what percentage of window overlaps with region, by area.
@@ -153,54 +168,54 @@ mod tests {
     use super::*;
 
     fn hd_monitor(x: i32, y: i32) -> MonitorInfo {
-        return MonitorInfo::New(x, x + 1920, y, y + 1080);
+        return MonitorInfo::new(x, x + 1920, y, y + 1080);
     }
     fn qhd_monitor(x: i32, y: i32) -> MonitorInfo {
-        return MonitorInfo::New(x, x + 2560, y, y + 1440);
+        return MonitorInfo::new(x, x + 2560, y, y + 1440);
     }
     fn fourk_monitor(x: i32, y: i32) -> MonitorInfo {
-        return MonitorInfo::New(x, x + 1920 * 2, y, y + 2160);
+        return MonitorInfo::new(x, x + 1920 * 2, y, y + 2160);
     }
 
-//     #[test]
-//     fn test_calculate_swap_coords_qhd_pair() {
-//         let from = qhd_monitor(0, 0);
-//         let to = qhd_monitor(2560, 0);
-//         let window = Rect {
-//             left: 0,
-//             right: 1280,
-//             top: 0,
-//             bottom: 1440,
-//         };
+    //     #[test]
+    //     fn test_calculate_swap_coords_qhd_pair() {
+    //         let from = qhd_monitor(0, 0);
+    //         let to = qhd_monitor(2560, 0);
+    //         let window = Rect {
+    //             left: 0,
+    //             right: 1280,
+    //             top: 0,
+    //             bottom: 1440,
+    //         };
 
-//         assert_eq!(
-//             calculate_swap_coords(from, to, window),
-//             Rect {
-//                 left: 2560,
-//                 right: 3840,
-//                 top: 0,
-//                 bottom: 1440
-//             }
-//         )
-//     }
-//     #[test]
-//     fn test_calculate_swap_coords_hd_to_4k() {
-//         let from = hd_monitor(0, 0);
-//         let to = fourk_monitor(1920, 0);
-//         let window = Rect {
-//             left: 0,
-//             right: 960,
-//             top: 0,
-//             bottom: 1080,
-//         };
-//         assert_eq!(
-//             calculate_swap_coords(from, to, window),
-//             Rect {
-//                 left: 1920,
-//                 right: 1920 * 2,
-//                 top: 0,
-//                 bottom: 2160,
-//             }
-//         )
-//     }
+    //         assert_eq!(
+    //             calculate_swap_coords(from, to, window),
+    //             Rect {
+    //                 left: 2560,
+    //                 right: 3840,
+    //                 top: 0,
+    //                 bottom: 1440
+    //             }
+    //         )
+    //     }
+    //     #[test]
+    //     fn test_calculate_swap_coords_hd_to_4k() {
+    //         let from = hd_monitor(0, 0);
+    //         let to = fourk_monitor(1920, 0);
+    //         let window = Rect {
+    //             left: 0,
+    //             right: 960,
+    //             top: 0,
+    //             bottom: 1080,
+    //         };
+    //         assert_eq!(
+    //             calculate_swap_coords(from, to, window),
+    //             Rect {
+    //                 left: 1920,
+    //                 right: 1920 * 2,
+    //                 top: 0,
+    //                 bottom: 2160,
+    //             }
+    //         )
+    //     }
 }
