@@ -23,50 +23,50 @@ fn main() {
 }
 
 /// Swap windows between monitors or regions of your workspace.
-/// 
+///
 /// Swappy takes in two regions as input.
 /// They can be monitors, or arbitrary regions of your workspace.
 /// It then swaps windows that are "inside" these regions.
-/// 
+///
 /// A window is inside a region if a large portion of its area
 /// is inside the region. The threshold for this is customizeable.
-/// 
+///
 /// Swappy performs clamping as part of the swaps:
 /// a window being swapped will first be fit
 /// entirely inside the region it is leaving.
-/// 
+///
 /// Swappy also performs boundary snapping:
 /// windows with an edge on the boundary of a region
 /// are guaranteed to remain on region boundaries after a swap.
-/// 
+///
 /// # Examples
-/// 
+///
 /// =======================================
-/// 
+///
 /// Get information about your monitors and active windows:
-/// 
+///
 /// > swappy.exe --info
-/// 
+///
 /// =======================================
-/// 
+///
 /// Swap the contents of the first two monitors:
-/// 
+///
 /// > swappy.exe
-/// 
+///
 /// =======================================
-/// 
+///
 /// Swap the contents of two QHD monitors,
 /// the second of which has its bottom 40 pixels taken up
 /// by a taskbar:
-/// 
+///
 /// > swappy.exe "0,0,2560,1440" "2560,0,5120,1400"
-/// 
+///
 /// =======================================
-/// 
+///
 /// Swap the left and middle thirds of a WQHD monitor:
-/// 
+///
 /// > swappy.exe "0,0,1146,1440" "1146,0,2293,1440"
-/// 
+///
 /// =======================================
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -79,11 +79,11 @@ struct Args {
     info: bool,
 
     /// First region to switch contents.
-    /// 
+    ///
     /// This field can be a single positive integer,
     /// in which case it represents the index of one of your monitors.
     /// The region is the entirety of the monitor.
-    /// 
+    ///
     /// It can also be a string of four integers, "left, top, right, bottom".
     /// In this case, the region is the rectangle spanned
     /// by (left, top) to (right, bottom).
@@ -91,11 +91,11 @@ struct Args {
     region_a: Region,
 
     /// Second region to switch contents.
-    /// 
+    ///
     /// This field can be a single positive integer,
     /// in which case it represents the index of one of your monitors.
     /// The region is the entirety of the monitor.
-    /// 
+    ///
     /// It can also be a string of four integers, "left, top, right, bottom".
     /// In this case, the region is the rectangle spanned
     /// by (left, top) to (right, bottom).
@@ -133,7 +133,6 @@ fn region_parser(s: &str) -> Result<Region, String> {
     if s.contains(',') {
         let nums: Vec<Result<i32, ParseIntError>> =
             s.split(',').map(|x| x.trim().parse::<i32>()).collect();
-
         let err_str = format!(
             concat!(
                 "Could not parse rectangular region input {}. ",
