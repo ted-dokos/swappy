@@ -130,9 +130,9 @@ impl std::fmt::Display for Region {
 }
 
 fn region_parser(s: &str) -> Result<Region, String> {
-    if s.trim().starts_with('{') {
+    if s.contains(',') {
         let nums: Vec<Result<i32, ParseIntError>> =
-            s.split(',').map(|x| x.parse::<i32>()).collect();
+            s.split(',').map(|x| x.trim().parse::<i32>()).collect();
 
         let err_str = format!(
             concat!(
