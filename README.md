@@ -1,4 +1,4 @@
-% Swappy
+# Swappy
 
 Swappy is a command-line tool for quickly swapping windows
 between monitors or regions.
